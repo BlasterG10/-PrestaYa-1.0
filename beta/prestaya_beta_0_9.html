@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrestaYa 0.9</title>
+<style>html,body,#appFrame{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:#f4f6f8}#fallback{position:fixed;inset:0;display:grid;place-items:center;font-family:Arial,sans-serif;color:#172033;background:#f4f6f8;z-index:10}</style>
+</head>
+<body>
+<div id="fallback">Cargando PrestaYa 0.9…</div>
+<iframe id="appFrame" src="./prestaya_beta_0_8.html" title="PrestaYa"></iframe>
+<script>
+(function(){
+ const frame=document.getElementById('appFrame'),fallback=document.getElementById('fallback');let done=false;
+ function doc(){try{return frame.contentDocument||frame.contentWindow.document}catch(e){return null}}
+ function wait(){const d=doc();if(!d||!d.body){setTimeout(wait,250);return}fallback.style.display='none';if(!done){done=true;enhance(d,frame.contentWindow)}}
+ function enhance(d,w){
+  if(d.getElementById('pya09css'))return;
+  const s=d.createElement('style');s.id='pya09css';s.textContent=`
+   .pya09-panel{background:#fff;border-radius:16px;padding:20px;box-shadow:0 5px 25px #0001;margin-bottom:15px}.pya09-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.pya09-stat{background:#f8fafc;border:1px solid #eaecf0;border-radius:12px;padding:15px}.pya09-stat small{color:#667085}.pya09-stat strong{display:block;font-size:24px;margin-top:7px}.pya09-table{overflow:auto}.pya09-table table{width:100%;border-collapse:collapse}.pya09-table th,.pya09-table td{padding:10px;border-bottom:1px solid #eaecf0;text-align:left;font-size:13px}.pya09-note{background:#eff6ff;border-radius:10px;padding:11px;margin-bottom:14px}.pya09-danger{color:#991b1b;font-weight:700}.pya09-ok{color:#166534;font-weight:700}@media(max-width:800px){.pya09-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.pya09-grid{grid-template-columns:1fr}}
+  `;d.head.appendChild(s);
+  const nav=d.getElementById('staffNav'),main=d.querySelector('.main');if(!nav||!main)return;
+  const btn=d.createElement('button');btn.id='pya09AnalysisBtn';btn.textContent='📈 Análisis de clientes';btn.onclick=function(){w.show('pya09Analysis',this)};nav.insertBefore(btn,nav.firstChild);
+  const sec=d.createElement('section');sec.id='pya09Analysis';sec.className='sec';sec.innerHTML=`<div class="pya09-panel"><h3>Análisis de clientes</h3><div class="pya09-note">Área exclusiva para <b>Administrador</b> y <b>Supervisor</b>. Los empleados/cobradores no pueden acceder a estos indicadores.</div><div class="pya09-grid"><div class="pya09-stat"><small>Clientes registrados</small><strong id="pya09Clients">0</strong></div><div class="pya09-stat"><small>Clientes con préstamo</small><strong id="pya09Borrowers">0</strong></div><div class="pya09-stat"><small>Préstamos activos</small><strong id="pya09Active">0</strong></div><div class="pya09-stat"><small>Saldo pendiente</small><strong id="pya09Debt">RD$0.00</strong></div></div></div><div class="pya09-panel"><h3>Comportamiento de pagos</h3><div class="pya09-grid"><div class="pya09-stat"><small>Total cobrado</small><strong id="pya09Paid">RD$0.00</strong></div><div class="pya09-stat"><small>Pagos registrados</small><strong id="pya09Payments">0</strong></div><div class="pya09-stat"><small>Préstamos pendientes de aprobación</small><strong id="pya09Pending">0</strong></div><div class="pya09-stat"><small>Préstamos rechazados</small><strong id="pya09Rejected">0</strong></div></div></div><div class="pya09-panel"><h3>Resumen por cliente</h3><div class="pya09-table"><table><thead><tr><th>Cliente</th><th>N.º cliente</th><th>Préstamos</th><th>Pagado</th><th>Saldo</th><th>Estado</th></tr></thead><tbody id="pya09CustomerRows"></tbody></table></div></div>`;main.appendChild(sec);
+  function money(n){return 'RD$'+Number(n||0).toLocaleString('es-DO',{minimumFractionDigits:2})}
+  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+  function arr(key){try{return JSON.parse(w.localStorage.getItem(key)||'[]')}catch(e){return[]}}
+  function getLoans(){return arr('prestaya_loans')}function getClients(){return arr('prestaya_clients')}function getPayments(){return arr('prestaya_payments')}
+  function paid(loanId,pays){return pays.filter(p=>p.loanId===loanId).reduce((a,p)=>a+Number(p.amount||0),0)}
+  function renderAnalysis(){
+   const role=w.role;if(role!=='admin'&&role!=='supervisor'){sec.style.display='none';btn.style.display='none';return}
+   sec.style.display='';btn.style.display='';const cs=getClients(),ls=getLoans(),ps=getPayments();
+   const approved=ls.filter(l=>l.status==='Aprobado');
+   d.getElementById('pya09Clients').textContent=cs.length;d.getElementById('pya09Borrowers').textContent=new Set(approved.map(l=>l.clientId)).size;d.getElementById('pya09Active').textContent=approved.filter(l=>paid(l.id,ps)<Number(l.total||0)).length;d.getElementById('pya09Debt').textContent=money(approved.reduce((a,l)=>a+Math.max(0,Number(l.total||0)-paid(l.id,ps)),0));d.getElementById('pya09Paid').textContent=money(ps.reduce((a,p)=>a+Number(p.amount||0),0));d.getElementById('pya09Payments').textContent=ps.length;d.getElementById('pya09Pending').textContent=ls.filter(l=>l.status==='Pendiente').length;d.getElementById('pya09Rejected').textContent=ls.filter(l=>l.status==='Rechazado').length;
+   d.getElementById('pya09CustomerRows').innerHTML=cs.map(c=>{const mine=approved.filter(l=>l.clientId===c.id),p=mine.reduce((a,l)=>a+paid(l.id,ps),0),debt=mine.reduce((a,l)=>a+Math.max(0,Number(l.total||0)-paid(l.id,ps)),0);return `<tr><td>${esc(c.name)}</td><td>${esc(c.clientNumber||c.id?.slice(0,6)||'—')}</td><td>${mine.length}</td><td>${money(p)}</td><td>${money(debt)}</td><td class="${debt>0?'pya09-danger':'pya09-ok'}">${debt>0?'Con saldo':'Sin saldo'}</td></tr>`}).join('')||'<tr><td colspan="6">No hay clientes.</td></tr>';
+  }
+  const oldShow=w.show;if(typeof oldShow==='function'&&!w.__pya09Show){w.__pya09Show=true;w.show=function(id,b){if(id==='pya09Analysis'&&w.role!=='admin'&&w.role!=='supervisor'){alert('Esta área es exclusiva para Administrador y Supervisor.');return}oldShow(id,b);renderAnalysis()}}
+  const oldLogin=w.login;if(typeof oldLogin==='function'&&!w.__pya09Login){w.__pya09Login=true;w.login=function(){oldLogin();setTimeout(renderAnalysis,80)}}
+  // The employee area from Beta 0.8 remains available, and is explicitly restricted to Admin.
+  const oldAdd=w.pyaAddEmployee;if(typeof oldAdd==='function'&&!w.__pya09Emp){w.__pya09Emp=true;w.pyaAddEmployee=function(){if(w.role!=='admin'){alert('Solo el Administrador puede agregar empleados.');return}oldAdd();}}
+  renderAnalysis();
+  setInterval(renderAnalysis,1000);
+ }
+ frame.addEventListener('load',wait);setTimeout(wait,300);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrestaYa 0.8</title>
+<style>
+html,body,#appFrame{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:#f4f6f8}
+#fallback{position:fixed;inset:0;display:grid;place-items:center;font-family:Arial,sans-serif;color:#172033;background:#f4f6f8;z-index:10}
+</style>
+</head>
+<body>
+<div id="fallback">Cargando PrestaYa 0.8…</div>
+<iframe id="appFrame" src="./microprestamos_beta_0_7.html" title="PrestaYa"></iframe>
+<script>
+(function(){
+const frame=document.getElementById('appFrame');
+const fallback=document.getElementById('fallback');
+let injected=false;
+function getDoc(){try{return frame.contentDocument||frame.contentWindow.document}catch(e){return null}}
+function wait(){const d=getDoc();if(!d||!d.body){setTimeout(wait,300);return}fallback.style.display='none';if(injected)return;injected=true;enhance(d,frame.contentWindow)}
+function css(d){if(d.getElementById('pya08css'))return;const s=d.createElement('style');s.id='pya08css';s.textContent=`
+.pya-panel{background:#fff;border-radius:16px;padding:20px;box-shadow:0 5px 25px #0001;margin-bottom:15px}.pya-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.pya-search{display:flex;gap:10px;margin-bottom:14px}.pya-search input{flex:1}.pya-tag{display:inline-block;padding:4px 8px;border-radius:20px;background:#e0e7ff;font-size:12px;font-weight:700}.pya-lock{background:#fff7ed;border-left:4px solid #f59e0b;padding:10px;border-radius:8px}.pya-table{overflow:auto}.pya-table table{width:100%;border-collapse:collapse}.pya-table th,.pya-table td{padding:10px;border-bottom:1px solid #eaecf0;text-align:left;font-size:13px;white-space:nowrap}.pya-ok{color:#166534;font-weight:700}.pya-warn{color:#92400e;font-weight:700}.pya-danger{color:#991b1b;font-weight:700}@media(max-width:600px){.pya-grid{grid-template-columns:1fr}}
+`;d.head.appendChild(s)}
+function enhance(d,w){css(d);
+ const staffNav=d.getElementById('staffNav');
+ const main=d.querySelector('.main');
+ if(!staffNav||!main)return;
+ // Admin employee-management area.
+ const empBtn=d.createElement('button');empBtn.id='employeeNavBtn';empBtn.textContent='👔 Empleados';empBtn.onclick=function(){w.show('employees',this)};staffNav.insertBefore(empBtn,staffNav.querySelector('button:nth-child(5)'));
+ const sec=d.createElement('section');sec.id='employees';sec.className='sec';sec.innerHTML=`<div class="pya-panel"><h3>Administrar empleados</h3><div class="pya-lock">Solo el <b>Administrador</b> puede crear y modificar usuarios internos y sus niveles de acceso.</div><div class="pya-grid"><div><label>Nombre completo</label><input id="pyaEmpName"></div><div><label>Número de empleado</label><input id="pyaEmpNo" maxlength="6" placeholder="6 dígitos"></div><div><label>Rol</label><select id="pyaEmpRole"><option value="supervisor">Supervisor</option><option value="empleado">Empleado / Cobrador</option></select></div><div><label>Usuario</label><input id="pyaEmpUser"></div><div><label>Contraseña inicial</label><input id="pyaEmpPass" type="password"></div></div><button class="p" onclick="window.pyaAddEmployee()">Agregar empleado</button></div><div class="pya-panel"><h3>Usuarios registrados</h3><div class="pya-table"><table><thead><tr><th>N.º empleado</th><th>Nombre</th><th>Usuario</th><th>Nivel</th><th>Restricciones</th></tr></thead><tbody id="pyaEmpTable"></tbody></table></div></div>`;main.appendChild(sec);
+ const pendingBtn=d.createElement('button');pendingBtn.id='pendingNavBtn';pendingBtn.textContent='⏳ Préstamos pendientes';pendingBtn.onclick=function(){w.show('employeePending',this)};staffNav.insertBefore(pendingBtn,staffNav.querySelector('button:nth-child(4)'));
+ const pend=d.createElement('section');pend.id='employeePending';pend.className='sec';pend.innerHTML=`<div class="pya-panel"><h3>Préstamos pendientes</h3><p class="muted">Solicitudes creadas por los empleados/cobradores. Cada solicitud identifica quién la creó y quién la aprueba o rechaza.</p><div class="pya-table"><table><thead><tr><th>N.º préstamo</th><th>Cliente</th><th>Monto</th><th>Tipo</th><th>Solicitado por</th><th>Estado</th><th>Aprobado por</th></tr></thead><tbody id="pyaPendingTable"></tbody></table></div></div>`;main.appendChild(pend);
+ const originalCreate=w.createLoan;
+ if(typeof originalCreate==='function'&&!w.__pyaCreateWrapped){w.__pyaCreateWrapped=true;w.createLoan=function(){const before=(w.loans||[]).length;originalCreate();const arr=w.loans||[];if(arr.length>before){const l=arr[arr.length-1];l.requestedByName=(d.getElementById('user')?.value||'Empleado');l.requestedByNumber=(w.pyaCurrentEmployee?.number||'');l.requestedAt=new Date().toISOString();if(typeof w.save==='function')w.save();}renderPending();};}
+ // Add an employee-aware wrapper around approval.
+ const originalApprove=w.approve;
+ if(typeof originalApprove==='function'&&!w.__pyaApproveWrapped){w.__pyaApproveWrapped=true;w.approve=function(id,ok){originalApprove(id,ok);const l=(w.loans||[]).find(x=>x.id===id);if(l){l.approvedByName=d.getElementById('user')?.value||w.role||'Supervisor';l.approvedByRole=w.role;if(typeof w.save==='function')w.save();}renderPending();};}
+ w.pyaEmployees=JSON.parse(localStorage.getItem('prestaya_employees')||'[]');
+ w.pyaAddEmployee=function(){if(w.role!=='admin'){alert('Solo el Administrador puede administrar empleados.');return}const name=d.getElementById('pyaEmpName').value.trim(),number=d.getElementById('pyaEmpNo').value.trim(),role=d.getElementById('pyaEmpRole').value,user=d.getElementById('pyaEmpUser').value.trim(),pass=d.getElementById('pyaEmpPass').value;if(!name||!/^[0-9]{6}$/.test(number)||!user||!pass){alert('Completa nombre, número de empleado de 6 dígitos, usuario y contraseña.');return}if(w.pyaEmployees.some(e=>e.number===number||e.user===user)){alert('El número de empleado o usuario ya existe.');return}w.pyaEmployees.push({id:crypto.randomUUID?crypto.randomUUID():'e'+Date.now(),name,number,role,user,pass});localStorage.setItem('prestaya_employees',JSON.stringify(w.pyaEmployees));alert('Empleado agregado correctamente.');['pyaEmpName','pyaEmpNo','pyaEmpUser','pyaEmpPass'].forEach(id=>d.getElementById(id).value='');renderEmployees();};
+ w.pyaCurrentEmployee=null;
+ function renderEmployees(){const tb=d.getElementById('pyaEmpTable');if(!tb)return;tb.innerHTML=(w.pyaEmployees||[]).map(e=>`<tr><td>${esc(e.number)}</td><td>${esc(e.name)}</td><td>${esc(e.user)}</td><td><span class="pya-tag">${e.role==='supervisor'?'Supervisor':'Empleado / Cobrador'}</span></td><td>${e.role==='supervisor'?'Aprueba solicitudes y cambios financieros':'Puede registrar clientes, solicitar préstamos y registrar pagos; no puede aprobar.'}</td></tr>`).join('')||'<tr><td colspan="5">No hay empleados registrados.</td></tr>';}
+ function renderPending(){const tb=d.getElementById('pyaPendingTable');if(!tb)return;const loans=w.loans||[],clients=w.clients||[];tb.innerHTML=loans.filter(l=>l.status==='Pendiente').map(l=>{const c=clients.find(x=>x.id===l.clientId);return `<tr><td class="code">${esc(l.loanNumber||l.id?.slice(0,8)||'—')}</td><td>${esc(c?.name||'—')}</td><td>RD$${Number(l.amount||0).toLocaleString('es-DO',{minimumFractionDigits:2})}</td><td>${l.type==='flash'?'Flash':'Micro'}</td><td>${esc(l.requestedByName||'Empleado')} ${l.requestedByNumber?`(#${esc(l.requestedByNumber)})`:''}</td><td class="pya-warn">Pendiente</td><td>—</td></tr>`}).join('')||'<tr><td colspan="7">No hay préstamos pendientes.</td></tr>';}
+ function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+ function applyPermissions(){const role=w.role;const approval=d.getElementById('approvals');const approvalBtn=Array.from(staffNav.querySelectorAll('button')).find(b=>b.textContent.includes('Aprobaciones'));const empBtn2=d.getElementById('employeeNavBtn');if(approvalBtn)approvalBtn.style.display=(role==='admin'||role==='supervisor')?'block':'none';if(approval)approval.style.display=(role==='admin'||role==='supervisor')?'':'none';if(empBtn2)empBtn2.style.display=role==='admin'?'':'none';if(pend)pendingBtn.style.display=(role==='empleado'||role==='supervisor'||role==='admin')?'':'none';if(role!=='admin'&&d.getElementById('employees')?.classList.contains('on')){d.getElementById('employees').classList.remove('on');d.getElementById('dash')?.classList.add('on')}renderEmployees();renderPending();}
+ const oldLogin=w.login;
+ if(typeof oldLogin==='function'&&!w.__pyaLoginWrapped){w.__pyaLoginWrapped=true;w.login=function(){oldLogin();setTimeout(()=>{applyPermissions();if(w.role==='empleado'||w.role==='supervisor'){const emp=(w.pyaEmployees||[]).find(e=>e.user===(d.getElementById('user')?.value||''));if(emp)w.pyaCurrentEmployee=emp;renderPending();}},50)}}
+ const roleSelect=d.getElementById('role');if(roleSelect){const old=roleSelect.onchange;roleSelect.onchange=function(){if(old)old();};}
+ // Keep permissions enforced whenever navigation/render occurs.
+ const originalShow=w.show;if(typeof originalShow==='function'&&!w.__pyaShowWrapped){w.__pyaShowWrapped=true;w.show=function(id,btn){if(id==='approvals'&&w.role!=='admin'&&w.role!=='supervisor'){alert('El área de aprobaciones es exclusiva para Administrador y Supervisor.');return}if(id==='employees'&&w.role!=='admin'){alert('Solo el Administrador puede acceder.');return}originalShow(id,btn);applyPermissions();renderPending();};}
+ // Employee number can be entered in the login user field; map it to the employee record.
+ renderEmployees();renderPending();applyPermissions();
+}
+frame.addEventListener('load',wait);setTimeout(wait,500);
+})();
+</script>
+</body>
+</html>

@@ -1,14 +1,1 @@
-<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PrestaYa</title><style>html,body,#appFrame{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:#f4f6f8}#fallback{position:fixed;inset:0;display:grid;place-items:center;font:16px Arial;color:#172033;background:#f4f6f8;z-index:10}</style></head>
-<body><div id="fallback">Cargando PrestaYa…</div><iframe id="appFrame" src="./beta/prestaya_beta_0_9.html" title="PrestaYa"></iframe>
-<script>
-(function(){const f=document.getElementById('appFrame'),fb=document.getElementById('fallback');
-function fix(){try{const d=f.contentDocument,w=f.contentWindow;if(!d||!d.body){setTimeout(fix,150);return}
-fb.style.display='none';
-['pya09Employees','pya09Analysis'].forEach(id=>{const s=d.getElementById(id);if(s)s.classList.remove('sec'),s.classList.add('section')});
-const buttons=[...d.querySelectorAll('#staffNav button')];const approval=buttons.find(b=>b.textContent.includes('Aprobaciones'));if(approval)approval.style.display=(w.role==='admin'||w.role==='supervisor')?'':'none';
-const emp=d.getElementById('pya09EmployeesBtn');if(emp)emp.style.display=w.role==='admin'?'':'none';
-const ana=d.getElementById('pya09AnalysisBtn');if(ana)ana.style.display=(w.role==='admin'||w.role==='supervisor')?'':'none';
-}catch(e){}setTimeout(fix,500)}
-f.addEventListener('load',fix);fix();})();
-</script></body></html>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PrestaYa 1.0</title><style>html,body,#appFrame{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:#f4f6f8}#loading{position:fixed;inset:0;display:grid;place-items:center;font:16px Arial;background:#f4f6f8;z-index:10}</style></head><body><div id="loading">Cargando PrestaYa 1.0…</div><iframe id="appFrame" src="./beta/prestaya_beta_1_0.html" title="PrestaYa 1.0"></iframe><script>document.getElementById('appFrame').addEventListener('load',()=>document.getElementById('loading').style.display='none');</script></body></html>

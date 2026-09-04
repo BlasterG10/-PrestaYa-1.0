@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PrestaYa 1.2</title>
+<style>
+html,body,#appFrame{margin:0;width:100%;height:100%;border:0}
+body{overflow:hidden;background:#f4f6f8}
+#loading{position:fixed;inset:0;display:grid;place-items:center;font:16px Arial;background:#f4f6f8;z-index:5}
+</style>
+</head>
+<body>
+<div id="loading">Cargando PrestaYa 1.2…</div>
+<iframe id="appFrame" src="./prestaya_beta_1_1.html" title="PrestaYa 1.2"></iframe>
+<script>
+const frame=document.getElementById('appFrame');
+frame.addEventListener('load',()=>{
+  document.getElementById('loading').style.display='none';
+  const w=frame.contentWindow,d=w.document;
+  if(d.getElementById('prestaya12Patch')) return;
+  const style=d.createElement('style');
+  style.id='prestaya12Patch';
+  style.textContent=`
+    #loanRequests .card:first-child{border-left:4px solid #2563eb}
+    #loanRequests .requestIntro{background:#eff6ff;border-radius:10px;padding:12px;margin-bottom:14px}
+    #loanRequests .requestIntro strong{display:block;margin-bottom:4px}
+    #loanStatusFilters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+    #loanStatusFilters button{background:#e5e7eb;color:#172033}
+    #loanStatusFilters button.active{background:#2563eb;color:white}
+    #loans .loanScope{background:#ecfdf5;border-radius:10px;padding:12px;margin-bottom:14px}
+    #loans .loanScope strong{display:block;margin-bottom:4px}
+  `;
+  d.head.appendChild(style);
+  const loan=d.getElementById('loans');
+  const staffNav=d.getElementById('staffNav');
+  if(!loan || !staffNav) return;
+  const requests=d.createElement('section');
+  requests.id='loanRequests';
+  requests.className='sec';
+  requests.innerHTML=`<div class="card"><div class="requestIntro"><strong>📝 Solicitud de préstamo</strong><span class="muted">Esta área está destinada exclusivamente a crear y enviar nuevas solicitudes para aprobación.</span></div></div>`;
+  const createCard=loan.querySelector(':scope > .card');
+  if(createCard) requests.appendChild(createCard);
+  loan.parentNode.insertBefore(requests,loan);
+  const loanNav=[...staffNav.querySelectorAll('button')].find(b=>b.textContent.includes('Préstamos'));
+  const requestBtn=d.createElement('button');
+  requestBtn.textContent='📝 Solicitudes de préstamos';
+  requestBtn.addEventListener('click',()=>w.show('loanRequests',requestBtn));
+  if(loanNav) staffNav.insertBefore(requestBtn,loanNav); else staffNav.appendChild(requestBtn);
+  const loanTitle=loan.querySelector('h3');
+  if(loanTitle) loanTitle.textContent='Préstamos activos, atrasados y pagados';
+  const scope=d.createElement('div');
+  scope.className='loanScope';
+  scope.innerHTML='<strong>📌 Cartera de préstamos</strong><span>Este apartado ya no crea solicitudes. Aquí se consultan préstamos que están activos, atrasados o pagados.</span>';
+  loan.prepend(scope);
+  const listCard=[...loan.querySelectorAll(':scope > .card')].find(c=>c.querySelector('#loanTable'));
+  if(listCard){
+    const heading=listCard.querySelector('h3');
+    if(heading) heading.textContent='Cartera de préstamos';
+    const filters=d.createElement('div');
+    filters.id='loanStatusFilters';
+    filters.innerHTML=`<button type="button" data-filter="all" class="active">Todos</button><button type="button" data-filter="activo">Activos</button><button type="button" data-filter="atrasado">Atrasados</button><button type="button" data-filter="pagado">Pagados</button>`;
+    listCard.insertBefore(filters,listCard.querySelector('.search'));
+    let currentFilter='all';
+    const applyFilter=()=>{
+      const rows=[...d.querySelectorAll('#loanTable tr')];
+      rows.forEach(row=>{
+        const cells=[...row.children].map(c=>(c.textContent||'').trim().toLowerCase());
+        const status=cells[cells.length-1]||'';
+        row.style.display=currentFilter==='all'||status.includes(currentFilter)?'':'none';
+      });
+    };
+    filters.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+      currentFilter=btn.dataset.filter;
+      filters.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===btn));
+      applyFilter();
+    }));
+    if(typeof w.renderLoans==='function'){
+      const originalRenderLoans=w.renderLoans;
+      w.renderLoans=function(){ originalRenderLoans(); applyFilter(); };
+      w.renderLoans();
+    }
+  }
+  const pending=d.getElementById('pending');
+  if(pending){ const h=pending.querySelector('h3'); if(h) h.textContent='Solicitudes de préstamos pendientes'; }
+  const originalShow=w.show;
+  if(typeof originalShow==='function'){
+    w.show=function(id,btn){
+      originalShow(id,btn);
+      if(id==='loanRequests'){ const field=d.getElementById('loanClient'); if(field) setTimeout(()=>field.focus(),50); }
+    };
+  }
+});
+</script>
+</body>
+</html>

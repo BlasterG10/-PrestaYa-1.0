@@ -29,6 +29,14 @@ frame.addEventListener('load',()=>{
     #loanStatusFilters button.active{background:#2563eb;color:white}
     #loans .loanScope{background:#ecfdf5;border-radius:10px;padding:12px;margin-bottom:14px}
     #loans .loanScope strong{display:block;margin-bottom:4px}
+    #supervisorIds{margin-top:15px}
+    #supervisorIds .idHeader{background:#eff6ff;border-radius:10px;padding:12px;margin-bottom:14px}
+    #supervisorIds .idHeader strong{display:block;margin-bottom:4px}
+    #supervisorIdSearch{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}
+    #supervisorIds table{width:100%;border-collapse:collapse;background:white}
+    #supervisorIds th,#supervisorIds td{padding:10px;border-bottom:1px solid #eaecf0;text-align:left;font-size:13px;white-space:nowrap}
+    #supervisorIds .code{font-family:monospace;font-weight:800;letter-spacing:1px}
+    @media(max-width:600px){#supervisorIdSearch{grid-template-columns:1fr}}
   `;
   d.head.appendChild(style);
   const loan=d.getElementById('loans');
@@ -80,15 +88,99 @@ frame.addEventListener('load',()=>{
       w.renderLoans();
     }
   }
+
+  const ids=d.createElement('section');
+  ids.id='supervisorIds';
+  ids.className='sec';
+  ids.innerHTML=`
+    <div class="card">
+      <div class="idHeader">
+        <strong>🔐 Identificación de clientes y préstamos</strong>
+        <span class="muted">Administradores y Supervisores pueden consultar el número de cliente y el número de préstamo desde esta vista.</span>
+      </div>
+      <div id="supervisorIdSearch">
+        <input id="supervisorIdQuery" placeholder="Buscar por número de cliente, número de préstamo, nombre o documento">
+        <button id="supervisorIdClear" class="secondary" type="button">Limpiar</button>
+      </div>
+      <div class="table">
+        <table>
+          <thead><tr><th>N.º cliente</th><th>N.º préstamo</th><th>Cliente</th><th>Documento</th><th>Estado</th></tr></thead>
+          <tbody id="supervisorIdTable"></tbody>
+        </table>
+      </div>
+    </div>`;
+  loan.parentNode.insertBefore(ids,loan.nextSibling);
+  const idsBtn=d.createElement('button');
+  idsBtn.id='supervisorIdsBtn';
+  idsBtn.textContent='🔐 Números de clientes y préstamos';
+  idsBtn.addEventListener('click',()=>w.show('supervisorIds',idsBtn));
+  const pendingBtn=d.getElementById('pendingBtn');
+  if(pendingBtn) staffNav.insertBefore(idsBtn,pendingBtn); else staffNav.appendChild(idsBtn);
+
+  function renderSupervisorIds(){
+    const table=d.getElementById('supervisorIdTable'), input=d.getElementById('supervisorIdQuery');
+    if(!table || !input) return;
+    const q=(input.value||'').toLowerCase().trim();
+    const cs=Array.isArray(w.clients)?w.clients:[];
+    const ls=Array.isArray(w.loans)?w.loans:[];
+    const rows=ls.map(l=>({l,c:cs.find(x=>x.id===l.clientId)})).filter(x=>x.c).filter(({l,c})=>[c.number,c.name,c.idnum,l.number,l.status].some(v=>String(v||'').toLowerCase().includes(q)));
+    table.innerHTML=rows.map(({l,c})=>`<tr><td class="code">${w.esc(c.number)}</td><td class="code">${w.esc(l.number)}</td><td>${w.esc(c.name)}</td><td>${w.esc(c.documentType||'')} ${w.esc(c.idnum||'')}</td><td>${w.statusBadge(l.status)}</td></tr>`).join('')||'<tr><td colspan="5">No hay coincidencias.</td></tr>';
+  }
+  d.getElementById('supervisorIdQuery').addEventListener('input',renderSupervisorIds);
+  d.getElementById('supervisorIdClear').addEventListener('click',()=>{d.getElementById('supervisorIdQuery').value='';renderSupervisorIds();});
+  const originalApplyPermissions=w.applyPermissions;
+  if(typeof originalApplyPermissions==='function'){
+    w.applyPermissions=function(){
+      originalApplyPermissions();
+      const visible=(w.role==='admin'||w.role==='supervisor');
+      idsBtn.style.display=visible?'':'none';
+    };
+  }
+  const originalRenderAll=w.renderAll;
+  if(typeof originalRenderAll==='function'){
+    w.renderAll=function(){ originalRenderAll(); renderSupervisorIds(); };
+  }
   const pending=d.getElementById('pending');
-  if(pending){ const h=pending.querySelector('h3'); if(h) h.textContent='Solicitudes de préstamos pendientes'; }
+  if(pending){
+    const h=pending.querySelector('h3');
+    if(h) h.textContent='Solicitudes de préstamos pendientes';
+    const table=pending.querySelector('#pendingTable');
+    const head=pending.querySelector('thead tr');
+    if(head && !head.querySelector('.client-number-head')){
+      const th=d.createElement('th');
+      th.className='client-number-head';
+      th.textContent='N.º cliente';
+      const loanHead=head.querySelector('th');
+      head.insertBefore(th,loanHead ? loanHead.nextSibling : null);
+    }
+    if(table){
+      const originalRenderPending=w.renderPending;
+      if(typeof originalRenderPending==='function'){
+        w.renderPending=function(){
+          originalRenderPending();
+          [...table.querySelectorAll('tr')].forEach(row=>{
+            const loanNo=row.children[0]?.textContent?.trim();
+            if(!loanNo || row.children.length<2) return;
+            const l=(w.loans||[]).find(x=>String(x.number)===loanNo);
+            const c=l?(w.clients||[]).find(x=>x.id===l.clientId):null;
+            const td=d.createElement('td');
+            td.className='code';
+            td.textContent=c?.number||'—';
+            row.insertBefore(td,row.children[1]||null);
+          });
+        };
+      }
+    }
+  }
   const originalShow=w.show;
   if(typeof originalShow==='function'){
     w.show=function(id,btn){
       originalShow(id,btn);
       if(id==='loanRequests'){ const field=d.getElementById('loanClient'); if(field) setTimeout(()=>field.focus(),50); }
+      if(id==='supervisorIds') renderSupervisorIds();
     };
   }
+  renderSupervisorIds();
 });
 </script>
 </body>
